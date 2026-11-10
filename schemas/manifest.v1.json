@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/zjashanda/ark-archive/schemas/manifest.v1.json",
+  "title": "ark-archive manifest v1",
+  "description": "ark-archive 归档清单（manifest.v1）。所有用户可见时间（started_at / ended_at / archived_at）为北京时间、格式 YYYY-MM-DD HH:MM:SS，无 T、无 Z、无时区偏移（NOAH-43）。开启已废弃的 --legacy-rfc3339 / -LegacyRfc3339 时 archived_at 会输出带 +08:00 的 RFC3339，属显式例外，不满足本 schema 的时间 pattern。",
+  "type": "object",
+  "required": [
+    "run_id",
+    "project",
+    "device",
+    "node",
+    "started_at",
+    "ended_at",
+    "result",
+    "files",
+    "archived_at",
+    "source_dir"
+  ],
+  "properties": {
+    "schema": {
+      "description": "清单版本标识，固定为 manifest.v1。",
+      "const": "manifest.v1"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "device": {
+      "type": "string"
+    },
+    "node": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_at": {
+      "description": "运行开始时间（北京时间，无时区后缀）。",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+    "ended_at": {
+      "description": "运行结束时间（北京时间，无时区后缀）。",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+    "archived_at": {
+      "description": "归档时间（北京时间，无时区后缀）。",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+    "raw_started_at": {
+      "description": "started_at 的原始来源字符串（summary_final.json 原值或文件 mtime），仅用于溯源。",
+      "type": "string"
+    },
+    "raw_ended_at": {
+      "description": "ended_at 的原始来源字符串（summary_final.json 原值或文件 mtime），仅用于溯源。",
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "bytes", "sha256"],
+        "properties": {
+          "path": {
+            "description": "相对源目录的 POSIX 风格路径。",
+            "type": "string",
+            "minLength": 1
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_dir": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

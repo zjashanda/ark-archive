@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# PowerShell
+*.ps1.bak
+*.psd1.bak
+*.psm1.bak
+
+# 编辑器与操作系统噪音
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 临时与草稿
+*.tmp
+*.bak
+.incoming-*/
+*.log
+
+# 测试夹具里的日志是受控输入，必须保留
+!tests/fixtures/**
+!fixtures/**
+
+# 本地凭据（绝不入库）
+*.pass
+.env
+.env.*
+!.env.example
+*.credentials
+known_hosts
+*_known_hosts
+askpass*
+*.askpass

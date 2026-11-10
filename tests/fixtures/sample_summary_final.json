@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-11-02T09:06:47+08:00",
+  "ended_at": "2026-11-02T10:00:00+08:00",
+  "duration_minutes": 53,
+  "completed_rounds": 100,
+  "target_rounds": 100,
+  "normal_window": {
+    "recognized": 95,
+    "failed": 0,
+    "recognition_rate": 0.95
+  },
+  "boundary_window": {
+    "unexpected_results": 0
+  },
+  "serial_errors": {},
+  "warning_marker_round_counts": {},
+  "status_counts": {
+    "PASS": 95,
+    "UNKNOWN": 5
+  }
+}
