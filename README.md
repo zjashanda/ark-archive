@@ -17,7 +17,7 @@ lib/     ark_time.py  ark-time.sh  ark-time.ps1  ark_common.py  remote-verify.sh
 bin/     ark-archive.sh  ark-archive.ps1  ark_receipt.py  ark-receipt.sh  ark-receipt.ps1  ark-prune.sh  ark-prune.ps1
 schemas/ manifest.v1.json  receipt.v1.json
 tests/   test_*.py  run-all.sh  fixtures/
-tools/   secret-scan.sh
+tools/   secret-scan.sh  time_lint.py
 docs/    time-contract.md  archive-flow.md  manifest.md  receipt.md  retention.md
 ```
 
@@ -25,7 +25,7 @@ docs/    time-contract.md  archive-flow.md  manifest.md  receipt.md  retention.m
 - `bin/`：命令行入口。每个能力都有 Linux 与 Windows 两个入口。
 - `schemas/`：`manifest.v1` 与 `receipt.v1` 的 JSON Schema。
 - `tests/`：单元测试与端到端夹具，`run-all.sh` 一次跑完。
-- `tools/`：仓库自检工具，例如 `secret-scan.sh` 扫描是否误提交了凭据。
+- `tools/`：仓库自检工具。`secret-scan.sh` 扫描是否误提交了凭据；`time_lint.py` 扫描时间契约违规（规则集与 `skillhub-sync`、`venusahisiburner` 同源）。
 - `docs/`：时间契约、归档流程、manifest、receipt、保留策略的详细说明。
 
 存储侧布局（`linux003` 等存储节点）：
@@ -138,6 +138,16 @@ bash bin/ark-prune.sh --root /srv/storage/ark/results --apply
 | 禁止 | `T` 分隔符、`Z` 后缀、时区偏移、`UTC` 字样 | 一律不允许 |
 
 格式化只能调用 `lib/ark_time.py`（以及 `ark-time.sh` / `ark-time.ps1`），**任何 skill 或脚本都不得自己拼时间**。细节见 [docs/time-contract.md](docs/time-contract.md)。
+
+时间契约门禁（2026-11-11 起：四段均 0 违规，退出码 0）：
+
+```bash
+for d in lib bin schemas docs; do
+  python3 tools/time_lint.py --root "$d" --gate || exit 1
+done
+```
+
+`tests/` 保存负例与历史回归数据（原始 `summary_final` 样本、`legacy_rfc3339()` 断言等），不纳入门禁，基线用 `python3 tools/time_lint.py --root tests --json` 单独记录。
 
 ## 安全设计
 

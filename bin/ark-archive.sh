@@ -194,7 +194,7 @@ ended_at, raw_ended = from_source(summary.get('ended_at'))
 def mtime_iso(rel):
     ts = os.path.getmtime(os.path.join(src, rel))
     # 以北京时间表示 mtime，作为原始来源字符串；normalize 时仍是同一时刻
-    return datetime.datetime.fromtimestamp(ts, ark_time.BEIJING).isoformat()
+    return datetime.datetime.fromtimestamp(ts, ark_time.BEIJING).strftime("%Y-%m-%d %H:%M:%S")
 
 
 if started_at is None:

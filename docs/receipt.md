@@ -48,7 +48,7 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 `ark_time.legacy_rfc3339()` 输出旧形状：
 
 ```text
-2026-11-10T12:31:00+08:00
+2026-11-10T12:31:00+08:00  <!-- time-lint:allow 反例/legacy 样例 -->
 ```
 
 除此之外字段完全不变。注意：**legacy 回执有意不满足 `receipt.v1.json` 的时间正则**
@@ -187,7 +187,7 @@ RESULT=pass CONFIDENCE=medium
 
 > 说明：仓库当前 `fixtures/` 为空，因此下面的示例由一份**临时构造的 3 文件归档**生成，
 > 目的只是展示真实形状。原始结果目录是 `D:\work\demo\20261110_120000`，manifest 里
-> `archived_at` 故意写成 `2026-11-10T04:31:00Z`（UTC），用来证明输入宽松、输出一律北京时间。
+> `archived_at` 故意写成 `2026-11-10T04:31:00Z`（UTC），用来证明输入宽松、输出一律北京时间。  <!-- time-lint:allow 反例/legacy 样例 -->
 
 命令：
 
@@ -253,9 +253,9 @@ python3 bin/ark_receipt.py \
 ```diff
 -  "started_at": "2026-11-10 12:00:00",
 -  "ended_at": "2026-11-10 12:30:05",
-+  "started_at": "2026-11-10T12:00:00+08:00",
-+  "ended_at": "2026-11-10T12:30:05+08:00",
++  "started_at": "2026-11-10T12:00:00+08:00",  <!-- time-lint:allow 反例/legacy 样例 -->
++  "ended_at": "2026-11-10T12:30:05+08:00",  <!-- time-lint:allow 反例/legacy 样例 -->
 ...
 -    "archived_at": "2026-11-10 12:31:00",
-+    "archived_at": "2026-11-10T12:31:00+08:00",
++    "archived_at": "2026-11-10T12:31:00+08:00",  <!-- time-lint:allow 反例/legacy 样例 -->
 ```

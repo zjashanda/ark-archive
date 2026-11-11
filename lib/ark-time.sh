@@ -8,7 +8,7 @@
 #   ark_normalize "$raw"    # 把任意时间规范化为契约格式
 #   ark_check "$text"       # 契约格式返回 0，否则 1
 #
-# 约定：所有格式化都必须走这里，禁止脚本里自己写 date +"%Y-%m-%dT%H:%M:%SZ"。
+# 约定：所有格式化都必须走这里，禁止脚本里自己写 date +"%Y-%m-%dT%H:%M:%SZ"。  # time-lint:allow 反例说明：这行在讲禁止什么
 # 首选调用 lib/ark_time.py（唯一实现）；python 缺失时才退回 date 命令，
 # 退路与主实现规则一致（固定 UTC+8，无时区后缀）。
 

@@ -26,7 +26,7 @@
     python3 lib/ark_time.py now                 # 2026-11-10 12:09:56
     python3 lib/ark_time.py stamp               # 20261110-120956
     python3 lib/ark_time.py legacy-stamp "20261110_120956"  # 20261110-120956
-    python3 lib/ark_time.py normalize "2026-11-09T02:54:39Z"
+    python3 lib/ark_time.py normalize "<RFC3339 原始值>"      # 读入旧格式，输出契约格式
     python3 lib/ark_time.py check "2026-11-10 12:09:56"   # exit 0/1
     python3 lib/ark_time.py legacy "2026-11-10 12:09:56"  # 兼容旧消费者
 """
@@ -117,7 +117,7 @@ def _coerce(value):
     if suffix in (None, ""):
         tzinfo = BEIJING
     elif suffix in ("Z", "z"):
-        tzinfo = _dt.timezone.utc
+        tzinfo = _dt.timezone.utc  # time-lint:allow 解析外部 Z 后缀，输出仍走契约格式
     else:
         sign = 1 if suffix[0] == "+" else -1
         digits = suffix[1:].replace(":", "")
@@ -217,7 +217,7 @@ def legacy_rfc3339(value, offset_hours=8):
     新代码不得调用。默认输出已带 +08:00 的 RFC3339。
     """
     moment = _coerce(value)
-    text = moment.strftime("%Y-%m-%dT%H:%M:%S")
+    text = moment.strftime("%Y-%m-%dT%H:%M:%S")  # time-lint:allow legacy_rfc3339 兼容实现，默认不调用
     if offset_hours is None:
         return text + "Z"
     offset_minutes = int(round(float(offset_hours) * 60))

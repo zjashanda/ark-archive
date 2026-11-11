@@ -21,11 +21,15 @@
 
 | 场景 | 允许 | 禁止 |
 |---|---|---|
-| 用户可见时间 | `2026-11-10 12:09:56` | `2026-11-10T12:09:56+08:00`、`2026-11-10T04:09:56Z`、`2026-11-10 12:09:56 UTC` |
-| 文件名时间戳 | `20261110-120956` | `2026-11-10T12:09:56Z` |
-| 原始来源时间 | `raw_started_at: "2026-11-09T02:54:39Z"` | 把原始值直接写进 `started_at` |
+| 用户可见时间 | `2026-11-10 12:09:56` | `2026-11-10T12:09:56+08:00`、`2026-11-10T04:09:56Z`、`2026-11-10 12:09:56 UTC` |  <!-- time-lint:allow 反例/legacy 样例 -->
+| 文件名时间戳 | `20261110-120956` | `2026-11-10T12:09:56Z` |  <!-- time-lint:allow 反例/legacy 样例 -->
+| 原始来源时间 | `raw_started_at: "2026-11-09T02:54:39Z"` | 把原始值直接写进 `started_at` |  <!-- time-lint:allow 反例/legacy 样例 -->
 
 > 上表“禁止”列里的写法只用于说明违规形态，任何脚本输出中都不允许出现。
+
+表中与示例代码里的反例行尾带有 `<!-- time-lint:allow ... -->`（代码文件用 `# time-lint:allow`），这是
+`tools/time_lint.py` 的**同行豁免标记**：被标记的行只用于展示违规形态或 legacy 兼容实现，不计入门禁。
+新增反例必须带标记，否则 `python3 tools/time_lint.py --gate` 会报违规。
 
 ## 历史归档兼容
 
@@ -45,7 +49,7 @@
 # 错误：自己拼 RFC3339，带 T 和 Z
 def bad_now():
     import datetime
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  <!-- time-lint:allow 反例/legacy 样例 -->
 
 # 正确：只调用共享实现
 import sys
@@ -64,7 +68,7 @@ def good_normalize(raw):
 ```bash
 # 错误：脚本里自己格式化，而且用的是 UTC
 bad_now() {
-  date -u +"%Y-%m-%dT%H:%M:%SZ"
+  date -u +"%Y-%m-%dT%H:%M:%SZ"  <!-- time-lint:allow 反例/legacy 样例 -->
 }
 
 # 正确：source 薄封装后调用
@@ -119,7 +123,7 @@ Python：
 python3 lib/ark_time.py audit "2026-11-10 12:09:56"
 # 输出 ok，退出码 0
 
-python3 lib/ark_time.py audit "2026-11-10T12:09:56Z"
+python3 lib/ark_time.py audit "2026-11-10T12:09:56Z"  <!-- time-lint:allow 反例/legacy 样例 -->
 # 输出 "含 ISO 'T' 分隔符; 含 UTC 'Z' 后缀"，退出码 1
 ```
 
@@ -135,7 +139,7 @@ PowerShell：
 ```powershell
 . .\lib\ark-time.ps1
 Get-ArkTimeAudit '2026-11-10 12:09:56'          # 返回空集合，表示合规
-Get-ArkTimeAudit '2026-11-10T12:09:56Z'         # 返回问题列表
+Get-ArkTimeAudit '2026-11-10T12:09:56Z'         # 返回问题列表  <!-- time-lint:allow 反例/legacy 样例 -->
 ```
 
 Bash 侧可以直接用 `ark_check` 做布尔判断：
@@ -146,3 +150,17 @@ ark_check "2026-11-10 12:09:56" && echo compliant
 ```
 
 审计覆盖的违规面：格式不符、含 `T`、含 `Z`、含时区偏移、含 `UTC` / `GMT` 字样、不是合法日期时间。任何一项命中都应当修正，而不是放行。
+
+## 仓库自检门禁
+
+`tools/time_lint.py` 是本仓的文件级时间契约扫描器（规则集与 `skillhub-sync`、`venusahisiburner` 同源，豁免标记同为 `time-lint:allow`）。门禁覆盖生产与文档目录：
+
+```bash
+for d in lib bin schemas docs; do
+  python3 tools/time_lint.py --root "$d" --gate || exit 1
+done
+```
+
+2026-11-11 实测：`lib` 0 违规 / 4 文件、`bin` 0 / 7、`schemas` 0 / 2、`docs` 0 / 5，四段退出码均为 0。
+
+`tests/` 不纳入门禁：那里保存的是**负例与历史回归数据**——`tests/fixtures/sample_summary_final.json` 是外部 `summary_final` 的原始样本，按契约必须保留 `+08:00` 原值；`tests/test_ark_time.py` 断言 `legacy_rfc3339()` 的旧形状；`tests/test_entrypoints.py` 自带「源码里不得出现 ISO `T` 分隔符」的守卫正则。JSON 夹具无法加行内注释标记，因此 tests 单独用 `python3 tools/time_lint.py --root tests --json` 记录基线：2026-11-11 为 37 条 / 5 文件，全部属于上述三类，不随生产代码增长。
