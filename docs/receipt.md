@@ -61,7 +61,7 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 | 字段 | 类型 | 必填 | 说明 / 北京时间示例 |
 |---|---|---|---|
 | `schema` | string，const `run.receipt.v1` | 是 | 固定值，用于版本分派 |
-| `run_id` | string | 是 | 运行标识，通常是 `YYYYMMDD_HHMMSS_slug` |
+| `run_id` | string | 是 | 运行标识，通常是 `YYYYMMDD-HHMMSS_slug`（历史归档可能为下划线形式） |
 | `task` | string | 是 | 任务描述，进 KB 标题/claim |
 | `skill` | string | 是 | 产出该结果的 skill，默认 `lstest` |
 | `skill_version` | string | 是 | skill 版本，未知时 `unknown` |

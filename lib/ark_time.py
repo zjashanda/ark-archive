@@ -7,8 +7,10 @@
 1. 所有**用户可见**的时间一律使用北京时间（Asia/Shanghai，UTC+8）。
 2. 文本格式固定为 ``YYYY-MM-DD HH:MM:SS``，**禁止**出现 ``T``、``Z``、
    ``+08:00``、``UTC`` 或任何时区偏移后缀。
-3. 文件名时间戳固定为 ``YYYYMMDD_HHMMSS``。
-4. 原始来源时间（设备日志、summary_final.json 等）只能以 ``raw`` 前缀的
+3. 文件名时间戳固定为 ``YYYYMMDD-HHMMSS``。
+4. 历史归档目录可能仍为下划线形式（``YYYYMMDD_HHMMSS``），读取时用
+   ``is_legacy_stamp()`` 识别，**新生成一律连字符**，不迁移、不改名旧目录。
+5. 原始来源时间（设备日志、summary_final.json 等）只能以 ``raw`` 前缀的
    字段保留，不得直接透传给用户。
 
 设计约束
@@ -22,7 +24,8 @@
 命令行
 ------
     python3 lib/ark_time.py now                 # 2026-11-10 12:09:56
-    python3 lib/ark_time.py stamp               # 20261110_120956
+    python3 lib/ark_time.py stamp               # 20261110-120956
+    python3 lib/ark_time.py legacy-stamp "20261110_120956"  # 20261110-120956
     python3 lib/ark_time.py normalize "2026-11-09T02:54:39Z"
     python3 lib/ark_time.py check "2026-11-10 12:09:56"   # exit 0/1
     python3 lib/ark_time.py legacy "2026-11-10 12:09:56"  # 兼容旧消费者
@@ -37,14 +40,18 @@ import sys
 
 #: 用户可见时间格式（唯一允许的格式）
 CONTRACT_FORMAT = "%Y-%m-%d %H:%M:%S"
-#: 文件名时间戳格式
-STAMP_FORMAT = "%Y%m%d_%H%M%S"
+#: 文件名时间戳格式（唯一允许的新格式）
+STAMP_FORMAT = "%Y%m%d-%H%M%S"
+#: 历史归档目录使用过的下划线时间戳格式，仅供读取兼容
+LEGACY_STAMP_FORMAT = "%Y%m%d_%H%M%S"
 #: 北京时间固定偏移，避免 tzdata 依赖
 BEIJING = _dt.timezone(_dt.timedelta(hours=8), "Asia/Shanghai")
 #: 契约格式的严格校验
 CONTRACT_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
-#: 文件名时间戳的严格校验
-STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+#: 文件名时间戳的严格校验（新格式）
+STAMP_RE = re.compile(r"^\d{8}-\d{6}$")
+#: 历史下划线时间戳的严格校验（只读兼容）
+LEGACY_STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
 
 # RFC3339 / ISO8601 的常见变体，统一由 _parse_text 处理
 _ISO_RE = re.compile(
@@ -131,7 +138,7 @@ def to_text(value):
 
 
 def to_stamp(value=None):
-    """把任意输入规范化为文件名时间戳 ``YYYYMMDD_HHMMSS``。"""
+    """把任意输入规范化为文件名时间戳 ``YYYYMMDD-HHMMSS``（历史格式不产出）。"""
     if value is None:
         return now_stamp()
     return _coerce(value).strftime(STAMP_FORMAT)
@@ -149,7 +156,7 @@ def is_text(value):
 
 
 def is_stamp(value):
-    """判断字符串是否是文件名时间戳格式。"""
+    """判断字符串是否是新文件名时间戳格式 ``YYYYMMDD-HHMMSS``。"""
     if not isinstance(value, str) or not STAMP_RE.match(value):
         return False
     try:
@@ -157,6 +164,28 @@ def is_stamp(value):
     except ValueError:
         return False
     return True
+
+
+def is_legacy_stamp(value):
+    """判断字符串是否是历史下划线时间戳 ``YYYYMMDD_HHMMSS``（只读兼容）。
+
+    仅用于识别已存在的归档目录，**不要**用它校验新生成的时间戳——
+    新数据一律走 ``is_stamp()`` / ``to_stamp()`` 的连字符格式。
+    """
+    if not isinstance(value, str) or not LEGACY_STAMP_RE.match(value):
+        return False
+    try:
+        _dt.datetime.strptime(value, LEGACY_STAMP_FORMAT)
+    except ValueError:
+        return False
+    return True
+
+
+def legacy_stamp_to_stamp(value):
+    """把历史下划线时间戳转换为新连字符时间戳；非法输入抛 TimeContractError。"""
+    if not is_legacy_stamp(value):
+        raise TimeContractError("不是历史文件名时间戳: %s" % (value,))
+    return _dt.datetime.strptime(value, LEGACY_STAMP_FORMAT).strftime(STAMP_FORMAT)
 
 
 def audit(value):
@@ -216,10 +245,12 @@ def _main(argv=None):
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("now", help="输出当前北京时间")
-    sub.add_parser("stamp", help="输出当前文件名时间戳")
+    sub.add_parser("stamp", help="输出当前文件名时间戳（YYYYMMDD-HHMMSS）")
     for name in ("normalize", "check", "legacy", "audit"):
-        p = sub.add_parser(name)
-        p.add_argument("value")
+        sub.add_parser(name).add_argument("value")
+    sub.add_parser("legacy-stamp", help="把历史下划线时间戳转换为连字符格式").add_argument(
+        "value", help="历史下划线时间戳，如 20261110_120956"
+    )
     args = parser.parse_args(argv)
 
     if args.command == "now":
@@ -235,6 +266,13 @@ def _main(argv=None):
         return 0 if is_text(args.value) else 1
     if args.command == "legacy":
         print(legacy_rfc3339(args.value))
+        return 0
+    if args.command == "legacy-stamp":
+        try:
+            print(legacy_stamp_to_stamp(args.value))
+        except TimeContractError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         return 0
     if args.command == "audit":
         problems = audit(args.value)

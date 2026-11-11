@@ -15,9 +15,12 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ark_testlib import (  # noqa: E402
     CONTRACT_RE,
+    LEGACY_STAMP_RE,
     LIB_DIR,
     STAMP_RE,
     assert_contract_time,
+    python_exe,
+    run,
 )
 
 _LIB_PATH = os.path.join(LIB_DIR, "ark_time.py")
@@ -149,11 +152,59 @@ class AuditTest(unittest.TestCase):
 class StampTest(unittest.TestCase):
     def test_to_stamp_none_matches_filename_pattern(self):
         stamp = ark_time.to_stamp(None)
-        self.assertRegex(stamp, STAMP_RE, "to_stamp(None) 不是 YYYYMMDD_HHMMSS：%r" % stamp)
-        dt.datetime.strptime(stamp, "%Y%m%d_%H%M%S")
+        self.assertRegex(stamp, STAMP_RE, "to_stamp(None) 不是 YYYYMMDD-HHMMSS：%r" % stamp)
+        dt.datetime.strptime(stamp, "%Y%m%d-%H%M%S")
 
     def test_to_stamp_from_text(self):
-        self.assertEqual(ark_time.to_stamp("2026-11-10 12:09:56"), "20261110_120956")
+        self.assertEqual(ark_time.to_stamp("2026-11-10 12:09:56"), "20261110-120956")
+
+    def test_legacy_underscore_stamp_is_detected_as_legacy_only(self):
+        self.assertTrue(ark_time.is_legacy_stamp("20261110_120956"))
+        self.assertFalse(ark_time.is_stamp("20261110_120956"))
+
+    def test_hyphen_stamp_is_current_and_not_legacy(self):
+        self.assertTrue(ark_time.is_stamp("20261110-120956"))
+        self.assertFalse(ark_time.is_legacy_stamp("20261110-120956"))
+
+    def test_stamp_regexes_split_current_and_legacy(self):
+        self.assertRegex("20261110-120956", STAMP_RE)
+        self.assertRegex("20261110_120956", LEGACY_STAMP_RE)
+        self.assertNotRegex("20261110_120956", STAMP_RE)
+        self.assertNotRegex("20261110-120956", LEGACY_STAMP_RE)
+
+    def test_both_stamp_helpers_reject_invalid_calendar_dates(self):
+        for bad in ("20261310-120956", "20261110-250956"):
+            self.assertFalse(ark_time.is_stamp(bad), "is_stamp 不应接受 %r" % (bad,))
+        for bad in ("20261310_120956", "20261110_250956"):
+            self.assertFalse(
+                ark_time.is_legacy_stamp(bad), "is_legacy_stamp 不应接受 %r" % (bad,)
+            )
+
+
+class LegacyStampCliTest(unittest.TestCase):
+    def test_legacy_stamp_cli_prints_hyphen_format(self):
+        result = run(
+            [
+                python_exe(),
+                os.path.join(LIB_DIR, "ark_time.py"),
+                "legacy-stamp",
+                "20261110_120956",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "20261110-120956")
+
+    def test_legacy_stamp_cli_rejects_current_format(self):
+        result = run(
+            [
+                python_exe(),
+                os.path.join(LIB_DIR, "ark_time.py"),
+                "legacy-stamp",
+                "20261110-120956",
+            ]
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("不是历史文件名时间戳", result.stderr)
 
 
 class LegacyAndDurationTest(unittest.TestCase):

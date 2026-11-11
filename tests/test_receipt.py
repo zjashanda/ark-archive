@@ -28,7 +28,7 @@ from ark_testlib import (  # noqa: E402
 )
 
 SCRIPT = os.path.join(BIN_DIR, "ark_receipt.py")
-RID = "20261102_090644_wake_recognition"
+RID = "20261102-090644_wake_recognition"
 NODE = "win009"
 PROJECT = "tcl-r5"
 REQUIRED_KEYS = (

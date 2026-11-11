@@ -32,7 +32,7 @@
       "const": "run.receipt.v1"
     },
     "run_id": {
-      "description": "运行标识，通常是 YYYYMMDD_HHMMSS_slug",
+      "description": "运行标识，通常是 YYYYMMDD-HHMMSS_slug（历史归档可能为下划线 YYYYMMDD_HHMMSS 形式）",
       "type": "string",
       "minLength": 1
     },

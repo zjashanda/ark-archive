@@ -15,7 +15,7 @@
 #     target           归档正式目录 <results-root>/<node>/<project>/<run_id>
 #     quarantine_root  隔离区根目录
 #     run_id           运行 ID
-#     stamp            调用方生成的时间戳 YYYYMMDD_HHMMSS（北京时间，见 NOAH-43）
+#     stamp            调用方生成的时间戳 YYYYMMDD-HHMMSS（北京时间，见 NOAH-43）
 #
 # 退出码
 #   0  校验通过并成功落盘
@@ -44,9 +44,12 @@ qroot=$3
 runid=$4
 stamp=$5
 
-# stamp 必须是调用方按契约生成的 YYYYMMDD_HHMMSS，防止拼出诡异路径
+# stamp 新格式必须是连字符 YYYYMMDD-HHMMSS，防止拼出诡异路径。
+# 历史下划线 YYYYMMDD_HHMMSS 只读兼容：放行但告警，不做迁移。
 case "$stamp" in
-  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9])
+    printf 'WARN: legacy underscore stamp accepted: %s\n' "$stamp" >&2 ;;
   *) echo "非法 stamp: $stamp" >&2; exit 4 ;;
 esac
 

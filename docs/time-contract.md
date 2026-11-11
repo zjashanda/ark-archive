@@ -6,7 +6,7 @@
 
 1. **所有用户可见的时间都是北京时间**（Asia/Shanghai，UTC+8）。
 2. 文本格式固定为 `YYYY-MM-DD HH:MM:SS`。**禁止**出现 `T` 分隔符、`Z` 后缀、`+08:00` 之类的时区偏移，也禁止出现 `UTC` / `GMT` 字样。
-3. 文件名中的时间戳固定为 `YYYYMMDD_HHMMSS`。
+3. 文件名中的时间戳固定为 `YYYYMMDD-HHMMSS`（8 位日期 + 连字符 + 6 位时间，与全工作区口径一致）。
 4. 原始来源时间（设备日志、`summary_final.json` 等）只能以 `raw` 前缀的字段保留，不得直接透传给用户。
 5. 格式化只有一处实现：`lib/ark_time.py`。`lib/ark-time.sh` 与 `lib/ark-time.ps1` 只是薄封装。**任何 skill 或脚本都不得自己格式化时间。**
 
@@ -22,10 +22,20 @@
 | 场景 | 允许 | 禁止 |
 |---|---|---|
 | 用户可见时间 | `2026-11-10 12:09:56` | `2026-11-10T12:09:56+08:00`、`2026-11-10T04:09:56Z`、`2026-11-10 12:09:56 UTC` |
-| 文件名时间戳 | `20261110_120956` | `2026-11-10T12:09:56Z` |
+| 文件名时间戳 | `20261110-120956` | `2026-11-10T12:09:56Z` |
 | 原始来源时间 | `raw_started_at: "2026-11-09T02:54:39Z"` | 把原始值直接写进 `started_at` |
 
 > 上表“禁止”列里的写法只用于说明违规形态，任何脚本输出中都不允许出现。
+
+## 历史归档兼容
+
+文件名时间戳在 2026-11-11 之前用的是下划线 `YYYYMMDD_HHMMSS`。已存在的归档目录、暂存目录与隔离区目录**不迁移、不改名**：它们是历史数据，改名会破坏 manifest 里的路径与审计链路。
+
+- 读取方遇到下划线目录时用 `ark_time.is_legacy_stamp()` 识别（正则 `^\d{8}_\d{6}$`，并校验真实日期）。
+- 需要把历史时间戳转成新格式时用 `python3 lib/ark_time.py legacy-stamp "20261110_120956"`（输出 `20261110-120956`），只做字符串换算，不触碰磁盘。
+- `is_stamp()` 只认新格式；`is_stamp("20261110_120956")` 必须是 `False`，避免新代码误把历史格式当成当前格式产出。
+- **新生成的数据一律用连字符**：`to_stamp()`、`ark_stamp`、`Get-ArkTimeStamp` 都只输出 `YYYYMMDD-HHMMSS`。
+- `lib/remote-verify.sh` 对新格式放行；对下划线格式放行但打印 `WARN: legacy underscore stamp accepted: <stamp>`，用于兼容仍在传旧格式的调用方。
 
 ## 正反例
 
@@ -60,7 +70,7 @@ bad_now() {
 # 正确：source 薄封装后调用
 . "$(dirname "$0")/../lib/ark-time.sh"
 good_now()  { ark_now; }        # 2026-11-10 12:09:56
-good_stamp(){ ark_stamp; }      # 20261110_120956
+good_stamp(){ ark_stamp; }      # 20261110-120956
 good_norm() { ark_normalize "$1"; }
 ```
 
@@ -75,7 +85,7 @@ function Get-BadNow {
 # 正确：dot-source 薄封装后调用
 . .\lib\ark-time.ps1
 function Get-GoodNow   { Get-ArkTimeNow }        # 2026-11-10 12:09:56
-function Get-GoodStamp { Get-ArkTimeStamp }      # 20261110_120956
+function Get-GoodStamp { Get-ArkTimeStamp }      # 20261110-120956
 function Get-GoodNorm  { param($v) ConvertTo-ArkTime $v }
 ```
 

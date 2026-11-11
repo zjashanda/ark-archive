@@ -128,12 +128,12 @@ bash bin/ark-prune.sh --root /srv/storage/ark/results --apply
 
 ## 时间契约（NOAH-43）
 
-所有**用户可见**的时间都是北京时间，固定格式 `YYYY-MM-DD HH:MM:SS`，不带 `T`、不带 `Z`、不带任何时区偏移，也不出现 `UTC` 字样。文件名时间戳固定为 `YYYYMMDD_HHMMSS`。
+所有**用户可见**的时间都是北京时间，固定格式 `YYYY-MM-DD HH:MM:SS`，不带 `T`、不带 `Z`、不带任何时区偏移，也不出现 `UTC` 字样。文件名时间戳固定为 `YYYYMMDD-HHMMSS`（连字符）。历史归档目录可能仍是下划线形式，读取方用 `is_legacy_stamp()` 识别，**只读兼容、不迁移不改名**；新数据一律连字符。
 
 | 场景 | 允许的写法 | 示例 |
 |---|---|---|
 | 用户可见时间（JSON、日志、报告） | `YYYY-MM-DD HH:MM:SS` | `2026-11-10 12:09:56` |
-| 文件名时间戳 | `YYYYMMDD_HHMMSS` | `20261110_120956` |
+| 文件名时间戳 | `YYYYMMDD-HHMMSS` | `20261110-120956` |
 | 原始来源时间 | 只保留在 `raw_*` 字段 | `raw_started_at`、`raw_ended_at` |
 | 禁止 | `T` 分隔符、`Z` 后缀、时区偏移、`UTC` 字样 | 一律不允许 |
 

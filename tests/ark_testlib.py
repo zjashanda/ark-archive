@@ -22,8 +22,10 @@ FIXTURES_DIR = os.path.join(REPO_ROOT, "tests", "fixtures")
 
 #: 用户可见时间契约：YYYY-MM-DD HH:MM:SS
 CONTRACT_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
-#: 文件名时间戳契约：YYYYMMDD_HHMMSS
-STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+#: 文件名时间戳契约（新格式，连字符）：YYYYMMDD-HHMMSS
+STAMP_RE = re.compile(r"^\d{8}-\d{6}$")
+#: 历史归档使用过的下划线时间戳，仅用于只读兼容断言
+LEGACY_STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
 #: 契约里禁止出现的片段
 FORBIDDEN_TIME_TOKENS = ("T", "Z", "+08:00", "UTC", "GMT")
 

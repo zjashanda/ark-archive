@@ -18,6 +18,7 @@
 #                    [--legacy-rfc3339] [--dry-run]
 #
 #   暂存目录统一为 <results-root>/<node>/<project>/.incoming-<run_id>-<stamp>/，
+#   <stamp> 为 YYYYMMDD-HHMMSS（北京时间，见 NOAH-43）；历史下划线目录只读兼容。
 #   bash 与 PowerShell 两个入口对同一棵源树生成完全相同的 files[].path。
 #
 # 退出码

@@ -6,13 +6,17 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 2026-11-11：文件名时间戳统一为 `YYYYMMDD-HHMMSS`（8 位日期 + 连字符 + 6 位时间），与 ark-node、asset-tools、tts-runtime 等全工作区口径一致。已存在的下划线目录只读兼容：不迁移、不改名，读取方用 `ark_time.is_legacy_stamp()` / `legacy-stamp` 子命令识别；新生成数据一律连字符。用户可见时间格式 `YYYY-MM-DD HH:MM:SS` 不变。
+
 ## [1.0.0] - 2026-11-10
 
 首个统一版本。把此前分散的 `ark-archive`（NOAH-31）、`ark-receipt`（NOAH-29）、`ark-prune`（NOAH-31）收拢为一个规范仓库。
 
 ### Added
 
-- 北京时间无时区时间契约（NOAH-43）：统一实现 `lib/ark_time.py`，以及 `lib/ark-time.sh`、`lib/ark-time.ps1` 两个薄封装。用户可见时间格式为 `YYYY-MM-DD HH:MM:SS`，文件名时间戳为 `YYYYMMDD_HHMMSS`。
+- 北京时间无时区时间契约（NOAH-43）：统一实现 `lib/ark_time.py`，以及 `lib/ark-time.sh`、`lib/ark-time.ps1` 两个薄封装。用户可见时间格式为 `YYYY-MM-DD HH:MM:SS`，文件名时间戳为 `YYYYMMDD_HHMMSS`（历史取值；2026-11-11 起改为连字符 `YYYYMMDD-HHMMSS`，见 Unreleased）。
 - manifest 新增可选字段 `raw_started_at`、`raw_ended_at`，用于保留原始来源时间，不污染用户可见字段。
 - 新增 `lib/ark_common.py`，集中路径常量、退出码与共享小工具。
 - 新增 `lib/remote-verify.sh`，把原先内嵌在归档脚本里的远端校验逻辑抽出，bash 与 PowerShell 入口共用。

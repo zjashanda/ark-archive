@@ -4,7 +4,7 @@
 # 用法（source 后调用）：
 #   . "$(dirname "$0")/ark-time.sh"
 #   ark_now                 # 2026-11-10 12:09:56
-#   ark_stamp               # 20261110_120956
+#   ark_stamp               # 20261110-120956
 #   ark_normalize "$raw"    # 把任意时间规范化为契约格式
 #   ark_check "$text"       # 契约格式返回 0，否则 1
 #
@@ -47,7 +47,7 @@ ark_stamp() {
     if _ark_time_py stamp 2>/dev/null; then
         return 0
     fi
-    TZ=Asia/Shanghai date +'%Y%m%d_%H%M%S'
+    TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S'
 }
 
 ark_normalize() {

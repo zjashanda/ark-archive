@@ -84,3 +84,13 @@
 - **本仓库可以就地停用**：如果决定不继续推进，直接停用本仓库即可，不产生孤儿数据。
 
 回滚不需要恢复任何备份，因为迁移过程没有执行删除操作。
+
+## 文件名时间戳变更（2026-11-11）
+
+本仓库把文件名 / 目录名时间戳从下划线 `YYYYMMDD_HHMMSS` 统一为连字符 `YYYYMMDD-HHMMSS`，与 ark-node、asset-tools、tts-runtime 等运行时口径一致。
+
+- **新数据**：`to_stamp()`、`ark_stamp`、`Get-ArkTimeStamp` 只输出 `YYYYMMDD-HHMMSS`，不再产出下划线形式。
+- **历史数据**：已存在的下划线归档目录、暂存目录、隔离区目录**不迁移、不改名**。它们仍是有效数据，manifest 与回执中的路径保持原样，避免破坏审计链路。
+- **读取方**：用 `ark_time.is_legacy_stamp(value)` 判断历史格式（正则 `^\d{8}_\d{6}$` 且校验真实日期）；需要换算时用 `python3 lib/ark_time.py legacy-stamp "20261110_120956"`，输出 `20261110-120956`，只做字符串转换，不触碰磁盘。
+- **远端校验**：`lib/remote-verify.sh` 对新格式直接放行；对下划线 stamp 放行但打印 `WARN: legacy underscore stamp accepted: <stamp>`，用于发现尚未升级的调用方。
+- **回滚**：无需回滚数据（没有执行任何改名或删除）。若旧调用方确实无法接受连字符 stamp，可临时继续传下划线 stamp，但会产生上述 WARN，且新代码不再推荐该路径。

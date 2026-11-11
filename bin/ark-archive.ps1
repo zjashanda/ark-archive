@@ -11,7 +11,8 @@
     整体移入隔离区，绝不污染正式目录。
 
   暂存目录统一为 <results-root>/<node>/<project>/.incoming-<run_id>-<stamp>/，与 bash 入口
-  完全一致，因此同一棵源树在两个入口下生成相同的 files[].path。
+  完全一致，因此同一棵源树在两个入口下生成相同的 files[].path。<stamp> 为
+  YYYYMMDD-HHMMSS（北京时间）；历史下划线目录只读兼容，不迁移。
 
   用法
     $env:ARK_STORAGE_SSH_PASS = '<口令>'
@@ -41,10 +42,10 @@
 
 .EXAMPLE
   $env:ARK_STORAGE_SSH_PASS = '<口令>'
-  .\ark-archive.ps1 -SourceDir D:\zhsh\workspace\tcl-r5\result\20261102_090644 -Project tcl-r5 -Device TCL-R5 -DryRun
+  .\ark-archive.ps1 -SourceDir D:\zhsh\workspace\tcl-r5\result\20261102-090644 -Project tcl-r5 -Device TCL-R5 -DryRun
 
 .EXAMPLE
-  .\ark-archive.ps1 -SourceDir D:\zhsh\workspace\tcl-r5\result\20261102_090644 -Project tcl-r5 -Device TCL-R5
+  .\ark-archive.ps1 -SourceDir D:\zhsh\workspace\tcl-r5\result\20261102-090644 -Project tcl-r5 -Device TCL-R5
 #>
 [CmdletBinding()]
 param(
@@ -94,13 +95,9 @@ function ConvertTo-ArkLegacyTime {
 }
 
 function Get-ArkArchiveStamp {
-  # 从 lib 产出的契约时间派生文件名时间戳 YYYYMMDD_HHMMSS。
-  # 说明：lib/ark-time.ps1 的 Get-ArkTimeStamp 当前格式常量写作 'HHMMSS'，
-  # .NET 会把大写的 SS 当字面量，输出 "..._HHMMSS" 而非秒数；该文件本轮不允许
-  # 修改，因此这里只对 Get-ArkTimeNow 的结果做字符串切分，不自行读取系统时间。
-  $text = Get-ArkTimeNow
-  return $text.Substring(0, 4) + $text.Substring(5, 2) + $text.Substring(8, 2) + '_' +
-    $text.Substring(11, 2) + $text.Substring(14, 2) + $text.Substring(17, 2)
+  # 文件名时间戳 YYYYMMDD-HHMMSS：统一走 lib 的 Get-ArkTimeStamp，
+  # 不自行读取系统时间，保证与 bash 入口（ark_stamp）逐字节一致。
+  return Get-ArkTimeStamp
 }
 
 function New-Sha256Table {

@@ -37,7 +37,7 @@ files[{path, bytes, sha256}], archived_at, source_dir
 <results-root>/<node>/<project>/.incoming-<run_id>-<stamp>
 ```
 
-`<stamp>` 是 `YYYYMMDD_HHMMSS` 形式的文件名时间戳，保证并发归档彼此不冲突。同时清理同名的临时校验脚本。
+`<stamp>` 是 `YYYYMMDD-HHMMSS` 形式的文件名时间戳，保证并发归档彼此不冲突。同时清理同名的临时校验脚本。历史下划线形式（`YYYYMMDD_HHMMSS`）的目录只读兼容：不迁移、不改名，新归档一律连字符。
 
 ### 4. 上传文件
 

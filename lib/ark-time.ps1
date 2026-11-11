@@ -3,7 +3,7 @@
 # 用法（dot-source 后调用）：
 #   . .\lib\ark-time.ps1
 #   Get-ArkTimeNow                 # 2026-11-10 12:09:56
-#   Get-ArkTimeStamp               # 20261110_120956
+#   Get-ArkTimeStamp               # 20261110-120956
 #   ConvertTo-ArkTime $raw         # 把任意时间规范化为契约格式
 #   Test-ArkTime '2026-11-10 12:09:56'   # $true/$false
 #
@@ -12,7 +12,7 @@
 # 规则与 lib/ark_time.py 完全一致：固定 UTC+8，无 T/Z/偏移。
 
 $script:ArkContractFormat = 'yyyy-MM-dd HH:mm:ss'
-$script:ArkStampFormat = 'yyyyMMdd_HHMMSS'
+$script:ArkStampFormat = 'yyyyMMdd-HHmmss'
 $script:ArkContractRegex = '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
 
 function Get-ArkBeijingOffset {
