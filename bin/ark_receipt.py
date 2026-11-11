@@ -68,6 +68,20 @@ RESULT_MAP = {
     "NEEDS_REVIEW": "needs_review",
 }
 
+# D9 兼容：归档器可能把识别统计写成 manifest.result=RECOGNIZED，这不是回执枚举，
+# 只能在有计数证据时归一，不能凭猜测放行。
+COUNT_FAILURE_KEYS = {
+    "NOT_RECOGNIZED",
+    "UNRECOGNIZED",
+    "FAILED",
+    "FAIL",
+    "MISS",
+    "MISSED",
+    "ERROR",
+    "ERRORS",
+    "TIMEOUT",
+}
+
 # ---------------------------------------------------------------------------
 # 共享时间库：lib/ark_time.py 是北京时间无时区契约的唯一实现。
 # 仓库可能被 checkout 到任意路径，因此按本文件位置推 ../lib 并注入 sys.path。
@@ -173,6 +187,46 @@ def build_totals(summary, manifest_files, total_bytes):
     if summary.get("status_counts"):
         totals["status_counts"] = summary["status_counts"]
     return totals
+
+
+def count_failures(status_counts):
+    failed = 0
+    for key, value in (status_counts or {}).items():
+        if str(key).strip().upper() in COUNT_FAILURE_KEYS:
+            try:
+                failed = max(failed, int(value or 0))
+            except (TypeError, ValueError):
+                die("status_counts[%r]=%r 不是整数计数" % (key, value))
+    return failed
+
+
+def resolve_result(raw_result, summary, totals):
+    mapped = RESULT_MAP.get(raw_result)
+    if mapped is not None:
+        return mapped, {
+            "raw_result": raw_result,
+            "normalized": False,
+            "derived_from": "result_map",
+            "failed": int(totals.get("failed") or 0),
+            "status_counts": totals.get("status_counts") or {},
+        }
+
+    counts = summary.get("status_counts") or {}
+    if not isinstance(counts, dict) or not counts:
+        die(
+            "manifest.result=%r 不在回执枚举内，且 summary 无 status_counts 可归一"
+            "（pass/fail/blocked/invalid/needs_review）" % raw_result
+        )
+
+    normal_failed = int((summary.get("normal_window") or {}).get("failed") or 0)
+    failed = max(normal_failed, count_failures(counts))
+    return ("pass" if failed == 0 else "fail"), {
+        "raw_result": raw_result,
+        "normalized": True,
+        "derived_from": "status_counts",
+        "failed": failed,
+        "status_counts": counts,
+    }
 
 
 def build_failures(summary):
@@ -303,11 +357,11 @@ def main(argv=None):
     totals = build_totals(summary, len(evidence["evidence_files"]), evidence["total_bytes"])
 
     raw_result = str(manifest.get("result") or "").strip().upper()
-    result = RESULT_MAP.get(raw_result)
-    if result is None:
-        die(
-            "manifest.result=%r 无法映射到 pass/fail/blocked/invalid/needs_review"
-            % raw_result
+    result, result_source = resolve_result(raw_result, summary, totals)
+    if result_source["normalized"]:
+        sys.stderr.write(
+            "NORMALIZED: manifest.result=%s failed=%d -> %s（依据 status_counts）\n"
+            % (raw_result, result_source["failed"], result)
         )
 
     # ---- 时间：唯一出口是 ark_time，默认契约格式，--legacy-rfc3339 才用旧格式 ----
@@ -357,6 +411,7 @@ def main(argv=None):
             "platform": platform,
         },
         "result": result,
+        "result_source": result_source,
         "totals": totals,
         "failures": build_failures(summary),
         "bugs_found": bugs,

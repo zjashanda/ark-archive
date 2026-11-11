@@ -74,6 +74,19 @@
       "type": "string",
       "enum": ["pass", "fail", "blocked", "invalid", "needs_review"]
     },
+    "result_source": {
+      "description": "结果来源证据：保留 manifest 原始 result 与归一依据（D9）",
+      "type": "object",
+      "required": ["raw_result", "normalized", "derived_from", "failed"],
+      "additionalProperties": false,
+      "properties": {
+        "raw_result": {"type": "string"},
+        "normalized": {"type": "boolean"},
+        "derived_from": {"type": "string", "enum": ["result_map", "status_counts"]},
+        "failed": {"type": "integer", "minimum": 0},
+        "status_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
     "totals": {
       "type": "object",
       "required": [

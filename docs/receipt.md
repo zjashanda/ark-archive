@@ -70,6 +70,11 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 | `scope.firmware` | string \| null | 是 | 固件标识（`--firmware`） |
 | `scope.platform` | string | 是 | 平台描述，默认 `<node> (<device>)` |
 | `result` | enum | 是 | `pass` / `fail` / `blocked` / `invalid` / `needs_review` |
+| `result_source.raw_result` | string | 是 | 归一前的 `manifest.result` 原值（大写），留证 |
+| `result_source.normalized` | boolean | 是 | 是否由计数证据归一而来 |
+| `result_source.derived_from` | enum | 是 | `result_map`（直接映射）/ `status_counts`（计数归一） |
+| `result_source.failed` | integer ≥0 | 是 | 归一判定用的失败计数；直接映射时取 `totals.failed` |
+| `result_source.status_counts` | object\<string,int\> | 否 | 归一所用的 `summary.status_counts` 原文 |
 | `totals.rounds` | integer ≥0 | 是 | 已完成轮数（`completed_rounds`） |
 | `totals.target_rounds` | integer ≥0 | 是 | 目标轮数 |
 | `totals.duration_minutes` | number ≥0 | 是 | 运行时长（分钟） |
@@ -110,7 +115,8 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 
 ## 3. `result` 与 `totals` 怎么来
 
-`result` 直接由 `manifest.result` 映射，**不做二次推断**：
+`result` 先由 `manifest.result` 直接映射；映射不到的取值**只在有计数证据时**归一，
+归一过程原样留在 `result_source` 里（D9）：
 
 | manifest.result | 回执 result |
 |---|---|
@@ -120,7 +126,18 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 | `INVALID` | `invalid` |
 | `ERROR` / `NEEDS_REVIEW` | `needs_review` |
 
-其它取值一律 exit 2（不允许静默降级成某个默认结果）。
+**归一（D9）**：归档器把识别统计写进 `manifest.result`（例如 `RECOGNIZED`）时，
+该值不在回执枚举内。此时不再直接 exit 2，而是要求 `summary.status_counts` 存在，
+用失败计数判定：
+
+- 失败计数 = `max(summary.normal_window.failed, status_counts 中失败类键的最大值)`；
+- 失败类键：`NOT_RECOGNIZED` / `UNRECOGNIZED` / `FAILED` / `FAIL` / `MISS` / `MISSED` / `ERROR` / `ERRORS` / `TIMEOUT`；
+- 失败计数 `== 0` → `pass`，`> 0` → `fail`；
+- `result_source = {raw_result: "RECOGNIZED", normalized: true, derived_from: "status_counts", failed: N, status_counts: {...}}`，
+  `totals.status_counts` 同时保留原文；stderr 打一行 `NORMALIZED: ...`。
+
+无 `status_counts` 可依时一律 exit 2——**不允许把未知结果静默降级成某个默认值**。
+直接映射成功的（`derived_from: result_map`）也带 `result_source`，便于消费方区分「原始结果」和「归一结果」。
 
 `totals` 全部来自 `summary_final.json`，缺字段按 0 兜底：
 
@@ -150,7 +167,7 @@ ark-kb 建条目、看板统计、追责归因的唯一输入，所以字段形�
 | 码 | 含义 |
 |---|---|
 | 0 | 成功（含 `--dry-run`） |
-| 2 | 参数/输入/校验失败：缺 `run_id/node/project`、manifest 条目非法（path 缺失或 sha256 不是 64 位小写 hex）、时间无法解析、`result` 无法映射、`--lessons/--bugs` 不是数组 |
+| 2 | 参数/输入/校验失败：缺 `run_id/node/project`、manifest 条目非法（path 缺失或 sha256 不是 64 位小写 hex）、时间无法解析、`result` 不在枚举内且无 `status_counts` 可归一、`status_counts` 值不是整数、`--lessons/--bugs` 不是数组 |
 | 3 | 本地文件哈希与 manifest 不一致，拒绝生成回执 |
 | 5 | 缺少共享时间库 `lib/ark_time.py` 或运行环境依赖 |
 
@@ -210,6 +227,7 @@ python3 bin/ark_receipt.py \
   "skill_version": "unknown",
   "scope": {"device": "DEMO-DEV", "project": "demo", "firmware": null, "platform": "demo (DEMO-DEV)"},
   "result": "pass",
+  "result_source": {"raw_result": "PASS", "normalized": false, "derived_from": "result_map", "failed": 1},
   "totals": {
     "rounds": 10, "target_rounds": 10, "duration_minutes": 30,
     "recognized": 9, "failed": 1, "recognition_rate": 0.9,
@@ -247,6 +265,19 @@ python3 bin/ark_receipt.py \
   }
 }
 ```
+
+同一份 summary，若 `manifest.result` 写成归档器直出的 `RECOGNIZED`（不在枚举内，走 D9 归一）：
+
+```diff
+-  "result": "pass",
+-  "result_source": {"raw_result": "PASS", "normalized": false, "derived_from": "result_map", "failed": 1},
++  "result": "fail",
++  "result_source": {"raw_result": "RECOGNIZED", "normalized": true, "derived_from": "status_counts",
++                    "failed": 1, "status_counts": {"RECOGNIZED": 9, "NOT_RECOGNIZED": 1}},
+```
+
+`tags` 里的结果位随之变成 `fail`，stderr 多一行
+`NORMALIZED: manifest.result=RECOGNIZED failed=1 -> fail（依据 status_counts）`。
 
 同一份 manifest 加 `--legacy-rfc3339` 后，只有三处时间变化：
 

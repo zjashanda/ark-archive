@@ -228,6 +228,91 @@ class ReceiptTest(unittest.TestCase):
             % (result.returncode, result.stderr),
         )
 
+    def _variant(self, result, summary):
+        manifest = dict(self.manifest)
+        manifest["result"] = result
+        path = os.path.join(self.tmp, "manifest.%s.json" % result.lower())
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, ensure_ascii=False, indent=2)
+        summary_path = os.path.join(self.tmp, "summary.%s.json" % result.lower())
+        with open(summary_path, "w", encoding="utf-8") as handle:
+            json.dump(summary, handle, ensure_ascii=False, indent=2)
+        return path, summary_path
+
+    def test_recognized_result_without_failures_normalizes_to_pass(self):
+        summary = {
+            "completed_rounds": 100,
+            "target_rounds": 100,
+            "normal_window": {"recognized": 95, "failed": 0, "recognition_rate": 0.95},
+            "status_counts": {"RECOGNIZED": 95, "UNKNOWN": 5},
+        }
+        manifest_path, summary_path = self._variant("RECOGNIZED", summary)
+        result = self._receipt(
+            ["--dry-run", "--summary", summary_path], manifest_path=manifest_path
+        )
+        self._assert_ok(result, "RECOGNIZED + failed=0")
+        receipt = extract_receipt(result.stdout)
+        self.assertEqual(receipt["result"], "pass")
+        source = receipt["result_source"]
+        self.assertTrue(source["normalized"])
+        self.assertEqual(source["derived_from"], "status_counts")
+        self.assertEqual(source["raw_result"], "RECOGNIZED")
+        self.assertEqual(source["failed"], 0)
+        self.assertEqual(source["status_counts"], {"RECOGNIZED": 95, "UNKNOWN": 5})
+        self.assertEqual(receipt["totals"]["status_counts"], {"RECOGNIZED": 95, "UNKNOWN": 5})
+        self.assertIn("NORMALIZED", result.stderr)
+
+    def test_recognized_result_with_failures_normalizes_to_fail(self):
+        summary = {
+            "completed_rounds": 10,
+            "target_rounds": 10,
+            "normal_window": {"recognized": 9, "failed": 1, "recognition_rate": 0.9},
+            "status_counts": {"RECOGNIZED": 9, "NOT_RECOGNIZED": 1},
+        }
+        manifest_path, summary_path = self._variant("RECOGNIZED", summary)
+        result = self._receipt(
+            ["--dry-run", "--summary", summary_path], manifest_path=manifest_path
+        )
+        self._assert_ok(result, "RECOGNIZED + failed>0")
+        receipt = extract_receipt(result.stdout)
+        self.assertEqual(receipt["result"], "fail")
+        self.assertEqual(receipt["result_source"]["failed"], 1)
+        self.assertEqual(receipt["failures"][0]["name"], "唤醒/命令词识别失败")
+        self.assertEqual(receipt["tags"], sorted({"archive", NODE, PROJECT, "fail"}))
+
+    def test_counted_failures_normalize_without_normal_window(self):
+        summary = {"completed_rounds": 4, "status_counts": {"RECOGNIZED": 3, "NOT_RECOGNIZED": 1}}
+        manifest_path, summary_path = self._variant("UNRECOGNIZED", summary)
+        result = self._receipt(
+            ["--dry-run", "--summary", summary_path], manifest_path=manifest_path
+        )
+        self._assert_ok(result, "只有 status_counts")
+        receipt = extract_receipt(result.stdout)
+        self.assertEqual(receipt["result"], "fail")
+        self.assertEqual(receipt["result_source"]["failed"], 1)
+
+    def test_unknown_result_without_counts_exits_2(self):
+        summary = {"completed_rounds": 10, "target_rounds": 10}
+        manifest_path, summary_path = self._variant("RECOGNIZED", summary)
+        result = self._receipt(
+            ["--dry-run", "--summary", summary_path], manifest_path=manifest_path
+        )
+        self.assertEqual(
+            result.returncode,
+            2,
+            "无计数证据时不得猜测结果，必须退出 2，实际 %d\nstderr:\n%s"
+            % (result.returncode, result.stderr),
+        )
+        self.assertIn("status_counts", result.stderr)
+
+    def test_known_result_is_not_marked_normalized(self):
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        source = receipt["result_source"]
+        self.assertFalse(source["normalized"])
+        self.assertEqual(source["derived_from"], "result_map")
+        self.assertEqual(source["raw_result"], "PASS")
+        self.assertFalse(os.path.exists(self.out_path))
+
     def test_missing_lib_exits_5(self):
         """把脚本复制到没有 lib/ 的目录，必须退出 5 而不是崩溃/成功。"""
         isolated = os.path.join(self.tmp, "isolated")
