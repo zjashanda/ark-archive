@@ -28,6 +28,7 @@ from ark_testlib import (  # noqa: E402
 )
 
 SCRIPT = os.path.join(BIN_DIR, "ark_receipt.py")
+SCHEMA_PATH = os.path.join(os.path.dirname(BIN_DIR), "schemas", "receipt.v1.json")
 RID = "20261102-090644_wake_recognition"
 NODE = "win009"
 PROJECT = "tcl-r5"
@@ -152,6 +153,78 @@ class ReceiptTest(unittest.TestCase):
         self.assertFalse(
             os.path.exists(self.out_path), "--dry-run 不应写出回执文件 %s" % self.out_path
         )
+
+    def test_receipt_accepts_optional_kb_context_and_delivery(self):
+        """kb_context / delivery 是可选顶层字段：缺失仍合法，写入后不破坏 required。"""
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        # 现有用例的校验口径：required 全在、schema 值正确，即为合法回执。
+        for key in REQUIRED_KEYS:
+            self.assertIn(key, receipt, "回执缺少 run.receipt.v1 字段 %r" % key)
+        self.assertNotIn("kb_context", receipt, "kb_context 必须可选，生成器默认不写")
+        self.assertNotIn("delivery", receipt, "delivery 必须可选，生成器默认不写")
+
+        with open(SCHEMA_PATH, encoding="utf-8") as handle:
+            schema = json.load(handle)
+        self.assertEqual(
+            set(schema["required"]), set(REQUIRED_KEYS), "本次变更不得改动 required"
+        )
+        self.assertNotIn(
+            "additionalProperties", schema, "根对象保持开放，未使用的新键不应被拒绝"
+        )
+        for name, contract in (
+            ("kb_context", "ark.kb-context.v1"),
+            ("delivery", "ark.delivery.v1"),
+        ):
+            prop = schema["properties"][name]
+            self.assertEqual(prop["type"], "object", "%s 必须是 object" % name)
+            self.assertIn(contract, prop["description"], "%s 应指向 %s" % (name, contract))
+            self.assertNotIn(name, schema["required"], "%s 不得进入 required" % name)
+
+        extended = dict(receipt)
+        extended["kb_context"] = {
+            "schema": "ark.kb-context.v1",
+            "contract_version": "1.0.0",
+            "queried_at": "2026-11-12 16:40:00",
+            "dims": {
+                "capability": [],
+                "project": PROJECT,
+                "device": "T14",
+                "firmware": None,
+                "profile": "",
+                "skill": "ark-archive",
+            },
+            "registry_commit": "unknown",
+            "hits": [],
+            "no_hit": True,
+            "refresh_points": [{"at": "stage:1", "reason": "首次查询"}],
+            "refresh_log": [],
+        }
+        extended["delivery"] = {
+            "schema": "ark.delivery.v1",
+            "run_id": RID,
+            "idempotency_key": "0" * 64,
+            "archive_status": "ok",
+            "archive_manifest_sha256": receipt["archive"]["manifest_sha256"],
+            "kb_ingest_status": "pending",
+            "kb_entry_ids": [],
+            "kb_query_back_status": "pending",
+            "kb_query_back_at": "",
+            "kb_query_back_hits": [],
+            "no_kb_reason": "",
+            "retry": {"attempts": 0, "last_error": ""},
+            "updated_at": "2026-11-12 16:41:00",
+        }
+        for key in REQUIRED_KEYS:
+            self.assertIn(key, extended, "附加可选字段后仍须保留 %r" % key)
+        self.assertEqual(extended["delivery"]["schema"], "ark.delivery.v1")
+        self.assertEqual(extended["delivery"]["archive_status"], "ok")
+        self.assertEqual(
+            extended["delivery"]["archive_manifest_sha256"],
+            receipt["archive"]["manifest_sha256"],
+            "archive_manifest_sha256 必须与回执 archive 段一致",
+        )
+        self.assertEqual(extended["kb_context"]["schema"], "ark.kb-context.v1")
+        self.assertIsInstance(json.loads(json.dumps(extended)), dict)
 
     def test_dry_run_totals(self):
         receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)

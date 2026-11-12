@@ -234,6 +234,14 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       }
+    },
+    "kb_context": {
+      "description": "可选：开工前知识查询留痕，形状见 ark.kb-context.v1（见 docs/reflow-contract.md）",
+      "type": "object"
+    },
+    "delivery": {
+      "description": "可选：归档后的回流状态，形状见 ark.delivery.v1（见 docs/reflow-contract.md）",
+      "type": "object"
     }
   }
 }
