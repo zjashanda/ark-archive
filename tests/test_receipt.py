@@ -28,6 +28,7 @@ from ark_testlib import (  # noqa: E402
 )
 
 SCRIPT = os.path.join(BIN_DIR, "ark_receipt.py")
+SCHEMA_PATH = os.path.join(os.path.dirname(BIN_DIR), "schemas", "receipt.v1.json")
 RID = "20261102-090644_wake_recognition"
 NODE = "win009"
 PROJECT = "tcl-r5"
@@ -53,6 +54,72 @@ REQUIRED_KEYS = (
     "tags",
     "archive",
 )
+
+
+_TYPE_CHECKS = {
+    "object": lambda value: isinstance(value, dict),
+    "array": lambda value: isinstance(value, list),
+    "string": lambda value: isinstance(value, str),
+    "integer": lambda value: isinstance(value, int) and not isinstance(value, bool),
+    "number": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool),
+    "boolean": lambda value: isinstance(value, bool),
+    "null": lambda value: value is None,
+}
+
+
+def schema_errors(schema, value, path="receipt"):
+    """校验 receipt.v1.json 实际用到的 draft-07 关键字，只用标准库。
+
+    仓库测试不引入第三方依赖；这里覆盖 type / required / properties /
+    additionalProperties / items / enum / const / pattern / minLength /
+    minItems / uniqueItems / minimum / maximum，足以验证 `checkpoints`
+    及其与既有字段的兼容性。
+    """
+    errors = []
+    expected = schema.get("type")
+    if expected is not None:
+        options = expected if isinstance(expected, list) else [expected]
+        if not any(_TYPE_CHECKS[name](value) for name in options):
+            return ["%s: 类型应为 %s，实际 %s" % (path, options, type(value).__name__)]
+    if "const" in schema and value != schema["const"]:
+        errors.append("%s: 必须等于 %r" % (path, schema["const"]))
+    if "enum" in schema and value not in schema["enum"]:
+        errors.append("%s: %r 不在枚举 %r 内" % (path, value, schema["enum"]))
+    if isinstance(value, str):
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            errors.append("%s: 长度小于 %d" % (path, schema["minLength"]))
+        if "pattern" in schema and re.search(schema["pattern"], value) is None:
+            errors.append("%s: %r 不匹配 %r" % (path, value, schema["pattern"]))
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            errors.append("%s: 小于下界 %r" % (path, schema["minimum"]))
+        if "maximum" in schema and value > schema["maximum"]:
+            errors.append("%s: 大于上界 %r" % (path, schema["maximum"]))
+    if isinstance(value, dict):
+        for key in schema.get("required", []):
+            if key not in value:
+                errors.append("%s: 缺少必填键 %r" % (path, key))
+        props = schema.get("properties", {})
+        extra = schema.get("additionalProperties", True)
+        for key, item in value.items():
+            if key in props:
+                errors.extend(schema_errors(props[key], item, "%s.%s" % (path, key)))
+            elif extra is False:
+                errors.append("%s: 不允许的键 %r" % (path, key))
+            elif isinstance(extra, dict):
+                errors.extend(schema_errors(extra, item, "%s.%s" % (path, key)))
+    if isinstance(value, list):
+        if "minItems" in schema and len(value) < schema["minItems"]:
+            errors.append("%s: 元素少于 %d" % (path, schema["minItems"]))
+        if schema.get("uniqueItems"):
+            seen = {json.dumps(item, sort_keys=True) for item in value}
+            if len(seen) != len(value):
+                errors.append("%s: 存在重复元素" % path)
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                errors.extend(schema_errors(item_schema, item, "%s[%d]" % (path, index)))
+    return errors
 
 
 class ReceiptTest(unittest.TestCase):
@@ -151,6 +218,140 @@ class ReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["scope"]["device"], "T14")
         self.assertFalse(
             os.path.exists(self.out_path), "--dry-run 不应写出回执文件 %s" % self.out_path
+        )
+
+    def test_receipt_accepts_optional_kb_context_and_delivery(self):
+        """kb_context / delivery 是可选顶层字段：缺失仍合法，写入后不破坏 required。"""
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        # 现有用例的校验口径：required 全在、schema 值正确，即为合法回执。
+        for key in REQUIRED_KEYS:
+            self.assertIn(key, receipt, "回执缺少 run.receipt.v1 字段 %r" % key)
+        self.assertNotIn("kb_context", receipt, "kb_context 必须可选，生成器默认不写")
+        self.assertNotIn("delivery", receipt, "delivery 必须可选，生成器默认不写")
+
+        with open(SCHEMA_PATH, encoding="utf-8") as handle:
+            schema = json.load(handle)
+        self.assertEqual(
+            set(schema["required"]), set(REQUIRED_KEYS), "本次变更不得改动 required"
+        )
+        self.assertNotIn(
+            "additionalProperties", schema, "根对象保持开放，未使用的新键不应被拒绝"
+        )
+        for name, contract in (
+            ("kb_context", "ark.kb-context.v1"),
+            ("delivery", "ark.delivery.v1"),
+        ):
+            prop = schema["properties"][name]
+            self.assertEqual(prop["type"], "object", "%s 必须是 object" % name)
+            self.assertIn(contract, prop["description"], "%s 应指向 %s" % (name, contract))
+            self.assertNotIn(name, schema["required"], "%s 不得进入 required" % name)
+
+        extended = dict(receipt)
+        extended["kb_context"] = {
+            "schema": "ark.kb-context.v1",
+            "contract_version": "1.0.0",
+            "queried_at": "2026-11-12 16:40:00",
+            "dims": {
+                "capability": [],
+                "project": PROJECT,
+                "device": "T14",
+                "firmware": None,
+                "profile": "",
+                "skill": "ark-archive",
+            },
+            "registry_commit": "unknown",
+            "hits": [],
+            "no_hit": True,
+            "refresh_points": [{"at": "stage:1", "reason": "首次查询"}],
+            "refresh_log": [],
+        }
+        extended["delivery"] = {
+            "schema": "ark.delivery.v1",
+            "run_id": RID,
+            "idempotency_key": "0" * 64,
+            "archive_status": "ok",
+            "archive_manifest_sha256": receipt["archive"]["manifest_sha256"],
+            "kb_ingest_status": "pending",
+            "kb_entry_ids": [],
+            "kb_query_back_status": "pending",
+            "kb_query_back_at": "",
+            "kb_query_back_hits": [],
+            "no_kb_reason": "",
+            "retry": {"attempts": 0, "last_error": ""},
+            "updated_at": "2026-11-12 16:41:00",
+        }
+        for key in REQUIRED_KEYS:
+            self.assertIn(key, extended, "附加可选字段后仍须保留 %r" % key)
+        self.assertEqual(extended["delivery"]["schema"], "ark.delivery.v1")
+        self.assertEqual(extended["delivery"]["archive_status"], "ok")
+        self.assertEqual(
+            extended["delivery"]["archive_manifest_sha256"],
+            receipt["archive"]["manifest_sha256"],
+            "archive_manifest_sha256 必须与回执 archive 段一致",
+        )
+        self.assertEqual(extended["kb_context"]["schema"], "ark.kb-context.v1")
+        self.assertIsInstance(json.loads(json.dumps(extended)), dict)
+
+    def _schema(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def _validate(self, receipt):
+        return schema_errors(self._schema(), receipt)
+
+    def test_receipt_without_checkpoints_still_validates(self):
+        """`checkpoints` 是可选字段：老回执不带它也必须通过 schema 校验。"""
+        schema = self._schema()
+        self.assertIn("checkpoints", schema["properties"], "schema 应新增 checkpoints 属性")
+        self.assertNotIn(
+            "checkpoints", schema["required"], "checkpoints 必须可选，不得进入 required"
+        )
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        self.assertNotIn("checkpoints", receipt, "生成器默认不写 checkpoints")
+        self.assertEqual(self._validate(receipt), [], "不带 checkpoints 的回执应当合法")
+
+    def test_receipt_with_valid_checkpoints_validates(self):
+        """带合法 checkpoints 数组的回执通过 schema 校验，且不破坏既有字段。"""
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        receipt["checkpoints"] = [
+            {
+                "checkpoint_id": "a" * 64,
+                "trigger": "EXECUTION_CHECK",
+                "quality": "formal",
+                "at": "2026-11-12 17:30:00",
+            },
+            {
+                "checkpoint_id": "b" * 64,
+                "trigger": "WATCHDOG_HEARTBEAT_LOST",
+                "quality": "candidate",
+                "at": "2026-11-12 17:35:00",
+            },
+        ]
+        for key in REQUIRED_KEYS:
+            self.assertIn(key, receipt, "附加 checkpoints 后仍须保留 %r" % key)
+        trigger_enum = self._schema()["properties"]["checkpoints"]["items"]["properties"][
+            "trigger"
+        ]["enum"]
+        self.assertEqual(len(trigger_enum), 12, "trigger 必须是 12 值封闭枚举")
+        self.assertNotIn("FINAL_RECEIPT", trigger_enum, "FINAL_RECEIPT 只聚合，不是检查点")
+        self.assertEqual(self._validate(receipt), [], "合法 checkpoints 应当通过校验")
+
+    def test_receipt_with_invalid_trigger_is_rejected(self):
+        """非法 trigger 必须被 schema 拒绝，而不是被静默接受。"""
+        receipt = extract_receipt(self._receipt(["--dry-run"]).stdout)
+        receipt["checkpoints"] = [
+            {
+                "checkpoint_id": "c" * 64,
+                "trigger": "NOT_A_TRIGGER",
+                "quality": "formal",
+                "at": "2026-11-12 17:40:00",
+            }
+        ]
+        errors = self._validate(receipt)
+        self.assertTrue(errors, "非法 trigger 必须产生校验错误")
+        self.assertTrue(
+            any("trigger" in message for message in errors),
+            "校验错误应定位到 trigger：%r" % errors,
         )
 
     def test_dry_run_totals(self):

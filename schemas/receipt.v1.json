@@ -234,6 +234,57 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       }
+    },
+    "kb_context": {
+      "description": "可选：开工前知识查询留痕，形状见 ark.kb-context.v1（见 docs/reflow-contract.md）",
+      "type": "object"
+    },
+    "delivery": {
+      "description": "可选：归档后的回流状态，形状见 ark.delivery.v1（见 docs/reflow-contract.md）",
+      "type": "object"
+    },
+    "checkpoints": {
+      "description": "可选：事件驱动回流检查点摘要，形状见 ark.checkpoint.v1（见 docs/reflow-contract.md）。完整事件以 append-only WAL 为准，本数组只做聚合。",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["checkpoint_id", "trigger", "quality", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "checkpoint_id": {
+            "description": "sha256(issue_id|run_id|stage|event_seq|evidence_digest)，64 位小写十六进制",
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "trigger": {
+            "description": "检查点触发器；FINAL_RECEIPT 只做聚合与关闭 outbox，不在枚举内",
+            "type": "string",
+            "enum": [
+              "EXECUTION_CHECK",
+              "STAGE_FINISHED",
+              "BLOCKED",
+              "FAIL",
+              "NEEDS_REVIEW",
+              "WATCHDOG_RUNNING_NO_EVIDENCE",
+              "WATCHDOG_STATE_DRIFT",
+              "WATCHDOG_TIMEOUT",
+              "WATCHDOG_HEARTBEAT_LOST",
+              "MANUAL_CANCEL",
+              "RUNTIME_CRASH",
+              "RECOVERY_REPLAY"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["formal", "candidate", "evidence_gap"]
+          },
+          "at": {
+            "description": "检查点时间，北京时间 YYYY-MM-DD HH:MM:SS",
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
+          }
+        }
+      }
     }
   }
 }
