@@ -25,7 +25,7 @@ docs/    time-contract.md  archive-flow.md  manifest.md  receipt.md  retention.m
 - `bin/`：命令行入口。每个能力都有 Linux 与 Windows 两个入口。
 - `schemas/`：`manifest.v1` 与 `receipt.v1` 的 JSON Schema。
 - `tests/`：单元测试与端到端夹具，`run-all.sh` 一次跑完。
-- `tools/`：仓库自检工具。`secret-scan.sh` 扫描是否误提交了凭据；`time_lint.py` 扫描时间契约违规（规则集与 `skillhub-sync`、`venusahisiburner` 同源）。
+- `tools/`：仓库自检工具。`secret-scan.sh` 扫描是否误提交了凭据；`time_lint.py` 扫描时间契约违规（规则集与 `skillhub-sync`、`burner` 同源）。
 - `docs/`：时间契约、归档流程、manifest、receipt、保留策略的详细说明。
 
 存储侧布局（`linux003` 等存储节点）：

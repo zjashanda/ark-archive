@@ -4,6 +4,10 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循语义化版本。
 
+## 0.2.1 — 2026-11-19
+
+Changed: 文档中的烧录能力名统一为 `burner`（仓库与 Skill 正式更名）。脚本与行为不变。
+
 ## [Unreleased]
 
 ### Changed
