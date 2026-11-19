@@ -153,7 +153,7 @@ ark_check "2026-11-10 12:09:56" && echo compliant
 
 ## 仓库自检门禁
 
-`tools/time_lint.py` 是本仓的文件级时间契约扫描器（规则集与 `skillhub-sync`、`venusahisiburner` 同源，豁免标记同为 `time-lint:allow`）。门禁覆盖生产与文档目录：
+`tools/time_lint.py` 是本仓的文件级时间契约扫描器（规则集与 `skillhub-sync`、`burner` 同源，豁免标记同为 `time-lint:allow`）。门禁覆盖生产与文档目录：
 
 ```bash
 for d in lib bin schemas docs; do
